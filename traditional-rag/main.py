@@ -1,5 +1,4 @@
 from chromadb.api.types import Document
-from langchain_core.tools import RetrieverInput
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
