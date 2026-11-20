@@ -1,0 +1,43 @@
+# Core LangChain & LangGraph
+langchain
+langchain-core
+langchain-community
+langchain-experimental
+langgraph
+pydantic
+
+# LLM & Embeddings (Groq + Hugging Face)
+langchain-groq
+langchain-huggingface
+langchain-text-splitters
+sentence-transformers
+
+# Environment & CLI Utilities (Script-first workflow)
+python-dotenv
+rich
+
+# Document Loaders & Text Splitters
+langchain-text-splitters
+pymupdf
+beautifulsoup4
+lxml
+wikipedia
+
+# Vector Stores (Local)
+chromadb
+faiss-cpu
+
+# Hybrid Search & Local Re-ranking (Zero extra API keys)
+rank-bm25
+flashrank
+
+# Web Search Fallback (for Corrective / Adaptive RAG)
+tavily-python
+duckduckgo-search
+
+# GraphRAG (In-memory graph without external DB setup)
+networkx
+
+# Evaluation & Tracing
+langsmith
+ragas
