@@ -18,9 +18,14 @@ class AppState(TypedDict):
     documents: list[Document]
     answer: str
 
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    encode_kwargs={"normalize_embeddings": True},
+)
 
 vector_store = Chroma(
     collection_name="ml-foundation",
+    embedding_function=embeddings,
     persist_directory="./chroma_db",
 )
 

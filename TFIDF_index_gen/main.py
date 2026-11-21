@@ -2,9 +2,14 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TFIDFRetriever
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    encode_kwargs={"normalize_embeddings": True},
+)
 
 vector_store = Chroma(
     collection_name="ml-foundation",
+    embedding_function=embeddings,
     persist_directory="./chroma_db",
 )
 
