@@ -1,3 +1,4 @@
+from langchain_huggingface import HuggingFaceEmbeddings
 from chromadb.api.types import Document
 from langchain_chroma import Chroma
 from dotenv import load_dotenv

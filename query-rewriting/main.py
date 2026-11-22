@@ -1,3 +1,4 @@
+from langchain_huggingface import HuggingFaceEmbeddings
 from pydantic import Field, BaseModel
 from chromadb.api.types import Document
 from langchain_chroma import Chroma

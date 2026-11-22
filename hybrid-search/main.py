@@ -1,3 +1,4 @@
+from langchain_huggingface import HuggingFaceEmbeddings
 from chromadb.api.types import Document
 from langchain_chroma import Chroma
 from langchain_community.retrievers import TFIDFRetriever
@@ -13,6 +14,7 @@ class AppState(TypedDict):
     question: str
     documents: list[Document]
     answer: str
+
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     encode_kwargs={"normalize_embeddings": True},
