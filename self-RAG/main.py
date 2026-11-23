@@ -96,7 +96,7 @@ def reranker_node(state: AppState):
 
     if not sentences:
         return {"documents": docs}
-        
+
     passages = [{"id": i, "text": sentence} for i, sentence in enumerate(sentences)]
 
     rerank_request = RerankRequest(query=state["question"], passages=passages)
@@ -112,12 +112,12 @@ def grade_document_node(state: AppState):
     docs = state["documents"]
 
     if not docs:
-            return {"documents": [], "doc_grade": "irrelevant", "document_reasoning": "No documents retrieved."}
+        return {"documents": [], "doc_grade": "irrelevant", "document_reasoning": "No documents retrieved."}
 
     numbered_chunks = "\n\n".join(
             f"[{i}] {doc.page_content}" for i, doc in enumerate(docs)
         )
-            
+
     result: BatchRelevance = relevance_grader_llm.invoke([
             SystemMessage(
                 content=(
@@ -129,7 +129,7 @@ def grade_document_node(state: AppState):
                 content=f"User Question: {question}\n\nRetrieved Chunks:\n{numbered_chunks}"
             ),
         ])
-    
+
     filtered_docs = [
             docs[i] for i in result.relevant_indices if 0 <= i < len(docs)
         ]
@@ -164,7 +164,7 @@ def grade_answer_node(state: AppState):
 
     return {"ans_grade": hallucination_res.grade, "answer_reasoning": hallucination_res.reasoning}
 
-def route_after_grading(state: AppState):
+def route_after_document_grading(state: AppState):
     grade = state["doc_grade"]
     retries = state.get("retry_count", 0)
 
@@ -220,7 +220,7 @@ builder.add_edge("rerank", "grade_documents")
 
 builder.add_conditional_edges(
     "grade_documents",
-    route_after_grading,
+    route_after_document_grading,
     {
         "generate": "generate",
         "rewrite_query": "rewrite_query",
