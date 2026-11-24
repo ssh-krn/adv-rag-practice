@@ -14,10 +14,6 @@ load_dotenv()
 
 GRAPH_PATH = "./lightrag_graph.gml"
 
-
-# ==========================================
-# 1. Structured Output Schemas
-# ==========================================
 class QueryEntities(BaseModel):
     entities: list[str] = Field(
         description="Key technical concepts, algorithms, or terms from the question to look up in the Knowledge Graph."
@@ -46,10 +42,6 @@ class QueryRewrite(BaseModel):
     reasoning: str = Field(description="Why the previous graph node lookup missed.")
     rewritten_query: str = Field(description="Alternative canonical technical terms (4-10 words) for graph retry.")
 
-
-# ==========================================
-# 2. Load Persisted NetworkX Graph & LLM
-# ==========================================
 graph_db = nx.read_gml(GRAPH_PATH)
 print(f"Loaded Pure Knowledge Graph: {graph_db.number_of_nodes()} nodes, {graph_db.number_of_edges()} edges")
 
@@ -60,10 +52,6 @@ relevance_llm = llm.with_structured_output(BatchRelevance)
 hallucination_llm = llm.with_structured_output(GradeHallucination)
 rewriter_llm = llm.with_structured_output(QueryRewrite)
 
-
-# ==========================================
-# 3. LangGraph State Definition
-# ==========================================
 class GraphOnlyRAGState(TypedDict):
     question: str
     active_query: str
@@ -270,10 +258,6 @@ def grade_answer_node(state: GraphOnlyRAGState) -> dict:
         "answer_reasoning": res.reasoning,
     }
 
-
-# ==========================================
-# 5. Conditional Routers & Graph Wiring
-# ==========================================
 def route_after_context_grading(state: GraphOnlyRAGState) -> str:
     if state["doc_grade"] == "relevant":
         return "generate"
@@ -318,7 +302,7 @@ graph_only_app = builder.compile()
 
 
 if __name__ == "__main__":
-    question = "How do L1 and L2 regularization address overfitting differently?"
+    question = "What is Machine Learning?"
 
     for event in graph_only_app.stream({"question": question}, stream_mode="updates"):
         for node_name, output in event.items():
