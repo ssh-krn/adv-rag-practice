@@ -21,7 +21,7 @@ from langgraph.prebuilt import ToolNode
 load_dotenv()
 
 CHROMA_DIR = "./chroma_db"
-COLLECTION_NAME = "lightrag_chunks"  # Or "ml-foundation"
+COLLECTION_NAME = "ml-foundation" 
 
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -36,7 +36,8 @@ chunk_store = Chroma(
 )
 
 ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="./cache")
-llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0)
+llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0)
+grader_llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0)
 
 @tool
 def search_textbook_chunks(query: str) -> str:
@@ -53,12 +54,12 @@ def search_textbook_chunks(query: str) -> str:
 
     passages = [{"id": i, "text": txt} for i, txt in enumerate(unique_texts)]
     ranked = ranker.rerank(RerankRequest(query=query, passages=passages))
-    top_chunks = [item["text"] for item in ranked[:3]]
+    top_chunks = [item["text"][:1200] for item in ranked[:3]]
 
     return "\n\n".join(f"[Textbook Passage {i+1}]\n{c}" for i, c in enumerate(top_chunks))
 
 
-tavily_client = TavilySearch(max_results=3, topic="general")
+tavily_client = TavilySearch(max_results=2, topic="general")
 
 
 @tool
@@ -77,7 +78,7 @@ def search_web_tavily(query: str) -> str:
         if isinstance(item, dict):
             title = item.get("title", "Web Source")
             url = item.get("url", "")
-            content = item.get("content", "")
+            content = item.get("content", "")[:1200]
             formatted.append(f"[Web Source {i+1}: {title} ({url})]\n{content}")
         else:
             formatted.append(f"[Web Source {i+1}]\n{item}")
@@ -97,7 +98,7 @@ class GradeHallucination(BaseModel):
     )
 
 
-hallucination_grader_llm = llm.with_structured_output(GradeHallucination)
+hallucination_grader_llm = grader_llm.with_structured_output(GradeHallucination)
 
 class AgenticRAGState(TypedDict):
     question: str
@@ -109,30 +110,35 @@ class AgenticRAGState(TypedDict):
     final_answer: str
 
 
-AGENT_SYSTEM_PROMPT = """You are an autonomous research assistant backed by two retrieval tools:
+AGENT_SYSTEM_PROMPT = """You are a grounded research assistant backed by two retrieval tools:
 1. `search_textbook_chunks`: Searches a local Machine Learning textbook vector store.
-2. `search_web_tavily`: Searches the live web via Tavily for recent updates, modern tools, or missing context.
+2. `search_web_tavily`: Searches the live web via Tavily for modern libraries and implementations.
 
-Strategy:
-- Always check `search_textbook_chunks` first for foundational concepts, math, or algorithms.
-- Call `search_web_tavily` whenever the question involves recent advancements, real-world libraries/frameworks, or when the textbook lacks sufficient detail.
-- You may call both tools if a question bridges classical theory and modern practice.
-- Once you have sufficient evidence, synthesize a thorough, well-structured answer citing whether facts come from [Textbook Passage] or [Web Source]. Rely strictly on tool outputs."""
+Strict Grounding Rules:
+- Always check `search_textbook_chunks` first for foundational concepts, and `search_web_tavily` for modern frameworks like PyTorch.
+- Synthesize your answer using ONLY the facts, definitions, and equations explicitly stated in the returned [Textbook Passage] and [Web Source] outputs.
+- Do NOT add outside mathematical derivations, gradient formulas, or differentiability claims unless they appear in the retrieved passages.
+- Cite [Textbook Passage X] or [Web Source X] inline."""
 
 
 def agent_reasoner_node(state: AgenticRAGState) -> dict:
-    history = state.get("messages", [])
+    history = list(state.get("messages", []))
     if not history:
         history = [HumanMessage(content=state["question"])]
 
     system_msg = SystemMessage(content=AGENT_SYSTEM_PROMPT)
 
     if state.get("ans_grade") == "ungrounded" and state.get("answer_reasoning"):
-        system_msg = SystemMessage(
-            content=(
-                AGENT_SYSTEM_PROMPT
-                + f"\n\nCRITICAL CORRECTION: Your previous draft failed groundedness verification ({state['answer_reasoning']}). "
-                "Rewrite your answer strictly using ONLY facts explicitly present in the tool outputs above."
+        # Remove the rejected draft AIMessage so history doesn't end on an assistant turn
+        if history and not getattr(history[-1], "tool_calls", None):
+            history.pop()
+        history.append(
+            HumanMessage(
+                content=(
+                    f"Your previous draft was rejected during verification: {state['answer_reasoning']}\n"
+                    "Rewrite the answer now using ONLY claims and formulas explicitly present in the tool outputs above. "
+                    "Remove any unverified mathematical derivations."
+                )
             )
         )
 
@@ -145,7 +151,6 @@ def agent_reasoner_node(state: AgenticRAGState) -> dict:
         "final_answer": response.content if not new_calls else state.get("final_answer", ""),
         "gen_retry_count": state.get("gen_retry_count", 0) + (1 if not new_calls else 0),
     }
-
 
 tool_executor_node = ToolNode(TOOLS)
 
@@ -165,8 +170,10 @@ def grade_hallucination_node(state: AgenticRAGState) -> dict:
     res: GradeHallucination = hallucination_grader_llm.invoke([
         SystemMessage(
             content=(
-                "You are a strict hallucination auditor. Verify whether every factual claim in the "
-                "Agent Answer is directly supported by the Retrieved Tool Evidence. Classify as 'grounded' or 'ungrounded'."
+                "You are a groundedness auditor. Verify whether the factual claims in the Agent Answer "
+                "are supported by the Retrieved Tool Evidence. Classify as 'grounded' if the core claims "
+                "and technical explanations align with the evidence without inventing unsupported facts or contradictions. "
+                "Classify as 'ungrounded' only if the answer introduces unsupported claims, formulas, or facts not backed by the sources."
             )
         ),
         HumanMessage(
